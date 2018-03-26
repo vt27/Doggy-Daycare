@@ -1,0 +1,728 @@
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.awt.Rectangle;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
+import javax.swing.DefaultListModel;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JPasswordField;
+import javax.swing.JRadioButton;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
+
+public class DogGUI implements ActionListener{
+	branch branch = new branch();
+	
+	// user is allowed 3 login attempts
+	private int loginAttempts = 0;
+
+	// components of the login window
+	private JTextField usernameField;
+	private JPasswordField passwordField;
+	
+	private JFrame loginFrame;
+	private JFrame mainFrame;
+	private JFrame removeDog = new JFrame("Remove Dog");
+	private JPanel mainContentPanel = new JPanel(new CardLayout());
+	private JPanel contentDBPane = new JPanel();
+	private JPanel mainMenu = new JPanel(); 
+	private JPanel customerReservationPanel = new JPanel();
+	private JPanel addDogPanel = new JPanel();
+	private JPanel customerProfilePanel = new JPanel();
+	private JPanel employeeProfilePanel = new JPanel(); 
+	
+	private DefaultListModel<String> customerDogListModel = new DefaultListModel();
+	private JList<String> customerDogList = new JList<> (customerDogListModel);
+
+	// A valid UserID. Will be initialized in mainMenu() 
+	private int userID; 
+	// This global variable is specifically for method mainMenu()
+	String user_type = ""; 
+	
+	public DogGUI() {
+		
+		loginFrame = new JFrame("User Login");
+
+		JLabel usernameLabel = new JLabel("Enter username: ");
+		JLabel passwordLabel = new JLabel("Enter password: ");
+
+		usernameLabel.setFont(new Font("Serif", Font.PLAIN, 80));
+		passwordLabel.setFont(new Font("Serif", Font.PLAIN, 80));
+
+		usernameField = new JTextField(10);
+		passwordField = new JPasswordField(10);
+		passwordField.setEchoChar('*');
+
+		JButton loginButton = new JButton("Log In");
+
+		JPanel contentPane = new JPanel();
+		loginFrame.setContentPane(contentPane);
+		// mainFrame.setContentPane(mainContentPanel);
+
+		// layout components using the GridBag layout manager
+		GridBagLayout gb = new GridBagLayout();
+		GridBagConstraints c = new GridBagConstraints();
+
+		contentPane.setLayout(gb);
+		contentPane.setBorder(BorderFactory.createEmptyBorder(100, 100, 100, 100));
+
+		// place the username label
+		c.gridwidth = GridBagConstraints.RELATIVE;
+		c.insets = new Insets(10, 10, 5, 0);
+		gb.setConstraints(usernameLabel, c);
+		contentPane.add(usernameLabel);
+
+		// place the text field for the username
+		c.gridwidth = GridBagConstraints.REMAINDER;
+		c.insets = new Insets(10, 0, 5, 10);
+		gb.setConstraints(usernameField, c);
+		contentPane.add(usernameField);
+
+		// place password label
+		c.gridwidth = GridBagConstraints.RELATIVE;
+		c.insets = new Insets(0, 10, 10, 0);
+		gb.setConstraints(passwordLabel, c);
+		contentPane.add(passwordLabel);
+
+		// place the password field
+		c.gridwidth = GridBagConstraints.REMAINDER;
+		c.insets = new Insets(0, 0, 10, 10);
+		gb.setConstraints(passwordField, c);
+		contentPane.add(passwordField);
+
+		// place the login button
+		c.gridwidth = GridBagConstraints.REMAINDER;
+		c.insets = new Insets(5, 10, 10, 10);
+		c.anchor = GridBagConstraints.CENTER;
+		gb.setConstraints(loginButton, c);
+		contentPane.add(loginButton);
+
+		// register password field and OK button with action event handler
+		passwordField.addActionListener(this);
+		loginButton.addActionListener(this);
+
+		// anonymous inner class for closing the window
+		loginFrame.addWindowListener(new WindowAdapter() {
+			public void windowClosing(WindowEvent e) {
+				System.exit(0);
+			}
+		});
+
+		// size the window to obtain a best fit for the components
+		loginFrame.pack();
+
+		// center the frame
+		Dimension d = loginFrame.getToolkit().getScreenSize();
+		Rectangle r = loginFrame.getBounds();
+		loginFrame.setLocation((d.width - r.width) / 2, (d.height - r.height) / 2);
+		// make the window visible
+		loginFrame.setVisible(true);
+
+		// place the cursor in the text field for the username
+		usernameField.requestFocus();
+
+		try {
+			// Load the Oracle JDBC driver
+			DriverManager.registerDriver(new oracle.jdbc.driver.OracleDriver());
+		} catch (SQLException ex) {
+			System.out.println("Message: " + ex.getMessage());
+			System.exit(-1);
+		}
+	}
+
+	@Override
+	/*
+	 * event handler for login window
+	 */
+	public void actionPerformed(ActionEvent e) {
+		if (branch.connect(usernameField.getText(), String.valueOf(passwordField.getPassword()))) {
+			// if the username and password are valid,
+			// remove the login window and display a text menu
+			loginFrame.dispose();
+			initiateAllPanels();
+
+		} else {
+			loginAttempts++;
+
+			if (loginAttempts >= 3) {
+				loginFrame.dispose();
+				System.exit(-1);
+			} else {
+				// clear the password
+				passwordField.setText("");
+			}
+		}
+
+	}
+	
+	
+	private void initiateAllPanels()
+	{
+		promptDatabaseCreation();
+		mainMenu(); 
+		
+		mainContentPanel.add(contentDBPane, "Recreate database?");
+		mainContentPanel.add(mainMenu, "Main Menu");
+		mainFrame.getContentPane().add(mainContentPanel);
+		mainFrame.setVisible(true);
+	}
+	
+	private void initiateCustomerProfilePanel()
+	{
+		customerProfilePanel();
+		makeReservationPanel();
+		addDogPanel();
+		mainContentPanel.add(customerProfilePanel, "Profile");
+		mainContentPanel.add(customerReservationPanel, "Make a Reservation");
+		mainContentPanel.add(addDogPanel, "Add Dog");
+	}
+
+	private void initiateEmployeeProfilePanel(){
+		employeeProfilePanel(); 
+		mainContentPanel.add(employeeProfilePanel,  "Employee Profile");
+	}
+
+	private void promptDatabaseCreation()
+	{
+		mainFrame = new JFrame("Doggy Daycare");
+		mainFrame.setBounds(0,0,800,350);
+		mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		contentDBPane.setLayout(null);
+		JLabel promptLabel = new JLabel("Do you wish to recreate the database? If this is your first time logging in, select Yes",
+				JLabel.CENTER);
+		promptLabel.setBounds(0, 55, 800, 60);
+		
+		JButton yesButton = new JButton("Yes");
+		yesButton.setBounds(250, 120, 70, 30);
+		yesButton.addActionListener(new DataCreateAction());
+		
+		JButton noButton = new JButton("No");
+		noButton.setBounds(450, 120, 70, 30);
+		noButton.addActionListener(new DataCreateActionHitNo());
+		
+		contentDBPane.setBorder(BorderFactory.createEmptyBorder(100, 100, 100, 100));
+		contentDBPane.add(promptLabel, BorderLayout.CENTER);
+		contentDBPane.add(yesButton);
+		contentDBPane.add(noButton);
+		JFrame.setDefaultLookAndFeelDecorated(true);
+	}
+	
+	private void mainMenu() {
+		// once we successfully log in, mainFrame closes, sql script prints out,
+		// then this frame should open
+
+		JLabel mainMenuLabel = new JLabel("Choose User Type");
+
+		mainMenu.add(mainMenuLabel);
+		mainMenu.setLayout(new FlowLayout(FlowLayout.CENTER, 5, 5));
+
+		// Radio buttons
+		JRadioButton employeeRadio = new JRadioButton("Employee");
+		mainMenu.add(employeeRadio);
+		JRadioButton customerRadio = new JRadioButton("Customer");
+		mainMenu.add(customerRadio);
+
+		// Only select one not both
+		ButtonGroup bg = new ButtonGroup();
+		bg.add(employeeRadio);
+		bg.add(customerRadio);
+		
+		// add customerRadio and employeeRadio to mainMenu 
+		mainMenu.add(customerRadio);
+		mainMenu.add(employeeRadio);
+		
+		// default customerRadio is selected 
+		customerRadio.setSelected(true);
+		user_type = "Input Customer ID"; 
+		// default label for text field is for customerID 
+		JLabel id = new JLabel(user_type); 
+		mainMenu.add(id); 
+		
+		// setup textfield for user to input their id 
+		JTextField textField = new JTextField();
+		textField.addActionListener(this);
+		mainMenu.add(textField); 
+		textField.setColumns(10);
+		
+		// action listener checker for employeeRadio and customerRadio 
+		ActionListener checker = new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				JRadioButton button = (JRadioButton) e.getSource();
+				if (button == customerRadio) {
+					user_type = "Input Customer ID"; 
+					id.setText(user_type);
+				} else {
+					user_type = "Input Employee ID"; 
+					id.setText(user_type);
+					
+				}
+			}
+		};
+		
+		// add action listener (checker) to employeeRadio and customerRadio 
+		employeeRadio.addActionListener(checker);
+		customerRadio.addActionListener(checker);
+		
+		// setup userButton and add to mainMenu 
+		JButton userButton = new JButton("Enter");
+		userButton.setHorizontalAlignment(SwingConstants.SOUTH_EAST);
+		mainMenu.add(userButton); 
+		
+		// USERBUTTON'S ACTION LISTENER THIS IS WHAT I AM WORKING ON RIGHT NOW
+		// THIS PART OF THE FUNCTION WILL BE INTERACTING WITH THE QUERIES IN BRANCH.JAVA 
+		 userButton.addActionListener(new ActionListener(){
+		 @Override
+		 public void actionPerformed(ActionEvent e) {
+			 String textFieldValue = textField.getText(); 
+			 
+			 System.out.println("This is the value of textFieldValue: " + textFieldValue); 
+			 
+			 if (textField.getText().isEmpty()){
+				 // if textField is empty 
+				 JOptionPane.showMessageDialog(mainMenu, "Need to input ID");
+			 } 
+			 else if (notInt(textFieldValue)){
+				 // if textField value is not of type int 
+				 System.out.println("textFieldValue is not an int: " + textFieldValue);
+				 JOptionPane.showMessageDialog(mainMenuLabel,  "Invalid format"); 
+			 }
+			 else {  // either employeeRadio or customerRadio is selected 
+				 
+				 // case 1: customerRadio selected 
+				 if (customerRadio.isSelected()){   
+					 boolean valid = branch.customerMainMenu(textFieldValue); 
+					 if (valid){
+						 userID = Integer.parseInt(textFieldValue); 
+						 mainMenu.setVisible(false);
+						 initiateCustomerProfilePanel();
+						switchCards(mainContentPanel, "Make a Reservation"); // calls customerMenu
+					 } else {
+						 // invalid id, prompt Dialog box 
+						 JOptionPane.showMessageDialog(mainMenu, "Error: invalid ID. Please try again"); 
+					 }
+							
+				} // TODO: EmployeeRadio 
+				 // case 2: employeeRadio is selected 
+				 else{ 
+					 boolean validEID = branch.employeeMainMenu(textFieldValue); 
+					 if (validEID){
+						 userID = Integer.parseInt(textFieldValue);
+						 mainMenu.setVisible(false);
+						 initiateEmployeeProfilePanel(); 
+						 // switchCards(mainContentPanel, ""); 
+					 } else{
+						 // invalid EID, prompt Dialog box 
+						 JOptionPane.showMessageDialog(mainMenu,  "Error: invalid ID. Please try again");
+					 }
+				}
+			 }
+		}
+	});
+}
+	
+	public static boolean notInt(String str)  
+	{  
+	  try  
+	  {  
+	    int i = Integer.parseInt(str);  
+	  }  
+	  catch(NumberFormatException nfe)  
+	  {  
+	    return true;  
+	  }  
+	  return false;  
+	}
+	
+	
+	private void makeReservationPanel() 
+	{
+		customerReservationPanel.setLayout(null);
+		// Profile includes: update customer stuff, delete dog, points,
+		// See Rank
+		// Make reservation 
+		JComboBox options = createMainComboBox("Make a Reservation");
+//		JComboBox options = createMainComboBox();
+		customerReservationPanel.add(options);
+		
+		JLabel dogLabel = new JLabel("Dog's Name");
+		dogLabel.setBounds(50, 50, 200, 30);
+		JTextField textField = new JTextField();
+		textField.setBounds(50, 70, 200, 30);
+		
+		JLabel serviceLabel = new JLabel("Select a service");
+		serviceLabel.setBounds(500, 50, 200, 30);
+		
+		String[] dropDownOptions = {"Dog Walking", "Grooming", "Boarding", "Dog Training", "All"};
+		JComboBox serviceOptions = new JComboBox(dropDownOptions);
+		serviceOptions.setBounds(500, 70, 100, 20);
+		serviceOptions.setSelectedIndex(4);
+		
+		JLabel startTimeLabel = new JLabel("Pick a date and time of when you will be dropping off your dog");
+		startTimeLabel.setBounds(50, 100, 400, 30);
+		JLabel formatLabel = new JLabel("Please type the date and time with the following form: DD-MM-YYYY:24:00");
+		formatLabel.setBounds(50, 110, 500, 30);
+		JTextField startTimeTextField = new JTextField();
+		startTimeTextField.setText("DD-MM-YYYY:24:00");
+		startTimeTextField.setBounds(50, 130, 200, 30);
+		
+		JLabel endTimeLabel = new JLabel("Pick a date and time of when you will be picking up your dog");
+		endTimeLabel.setBounds(50, 160, 400, 30);
+		JLabel formatLabel2 = new JLabel("Please type the date and time with the following form: DD-MM-YYYY:24:00");
+		formatLabel2.setBounds(50, 170, 500, 30);
+		JTextField endTimeTextField = new JTextField();
+		endTimeTextField.setText("DD-MM-YYYY:24:00");
+		endTimeTextField.setBounds(50, 190, 200, 30);
+		
+		JButton submitButton = new JButton("Submit");
+		submitButton.setBounds(500, 120, 90, 40);
+//		submitButton.addActionListener();
+		
+		customerReservationPanel.add(dogLabel);
+		customerReservationPanel.add(textField);
+		customerReservationPanel.add(serviceLabel);
+		customerReservationPanel.add(serviceOptions);
+		customerReservationPanel.add(startTimeLabel);
+		customerReservationPanel.add(formatLabel);
+		customerReservationPanel.add(startTimeTextField);
+		customerReservationPanel.add(endTimeLabel);
+		customerReservationPanel.add(formatLabel2);
+		customerReservationPanel.add(endTimeTextField);
+		customerReservationPanel.add(submitButton);
+	}
+	
+	private void addDogPanel() 
+	{
+		addDogPanel.setLayout(null);
+		JComboBox options = createMainComboBox("Add Dog");
+		
+		JLabel dogLabel = new JLabel("Dog's Name");
+		dogLabel.setBounds(50, 60, 200, 30);
+		JTextField textField = new JTextField();
+		textField.setBounds(50, 90, 200, 30);
+		textField.setText("");
+		
+		JLabel ageLabel = new JLabel("Dog's Age");
+		ageLabel.setBounds(350, 60, 200, 30);
+		String[] dropDownOptions = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", 
+									"11", "12", "13", "14", "15", "16", "17", "18", "19", "20"};
+		JComboBox ageOptions = new JComboBox(dropDownOptions);
+		ageOptions.setBounds(350, 90, 100, 20);
+		ageOptions.setSelectedIndex(19);
+		
+		JLabel breedLabel = new JLabel("Dog's Breed");
+		breedLabel.setBounds(50, 130, 200, 30);
+		JTextField breedTextField = new JTextField();
+		breedTextField.setBounds(50, 160, 200, 30);
+		breedTextField.setText("");
+		
+		JLabel genderLabel = new JLabel("Gender");
+		genderLabel.setBounds(350, 130, 200, 30);
+		String[] dropDownOptionsGender = {"m", "f"};
+		JComboBox genderOptions = new JComboBox(dropDownOptionsGender);
+		genderOptions.setBounds(350, 160, 100, 20);
+		genderOptions.setSelectedIndex(1);
+		
+		JButton submitButton = new JButton("Submit");
+		submitButton.setBounds(500, 120, 90, 40);
+		
+		ActionListener submitDog = new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				try {
+					Dog dog = new Dog(textField.getText(), breedTextField.getText(),
+							(ageOptions.getSelectedIndex())+1, (String) genderOptions.getSelectedItem());
+					branch.customerAddDog(userID, dog);
+					JOptionPane.showMessageDialog(addDogPanel, "Your dog " + dog.name + " has been added to the database.");
+				} catch (IllegalArgumentException exception) {
+					JOptionPane.showMessageDialog(addDogPanel, "One or more of the fields you have inputed has produced an error.");
+				} catch (Exception exception) {
+					JOptionPane.showMessageDialog(addDogPanel, "An Internal Error has occured, an error has been reported, please try again later.");
+				}
+			}
+		};
+
+		submitButton.addActionListener(submitDog);
+
+		addDogPanel.add(options);
+		addDogPanel.add(dogLabel);
+		addDogPanel.add(textField);
+		addDogPanel.add(ageLabel);
+		addDogPanel.add(ageOptions);
+		addDogPanel.add(breedLabel);
+		addDogPanel.add(breedTextField);
+		addDogPanel.add(genderLabel);
+		addDogPanel.add(genderOptions);
+		addDogPanel.add(submitButton);
+	}
+	
+	private void customerProfilePanel() 
+	{
+		Customer customer;
+		try {
+			customer = branch.getCustomerProfile(userID);
+			customerProfilePanel.setLayout(null);
+			JComboBox options = createMainComboBox("Profile");
+//			JComboBox options = createMainComboBox();
+			System.out.println("Profile selected:" + options.getSelectedItem());
+			
+			JLabel customerId = new JLabel("Identification Number");
+			customerId.setBounds(50, 50, 200, 30);
+			JTextField idField = new JTextField();
+			idField.setBounds(50, 70, 100, 30);
+			idField.setText(Integer.toString(customer.getId()));
+			
+			JLabel customerName = new JLabel("Name");
+			customerName.setBounds(50, 90, 200, 30);
+			JTextField nameField = new JTextField();
+			nameField.setBounds(50, 110, 100, 30);
+			nameField.setText(customer.getName());
+			
+			JLabel customerEmailAddress = new JLabel("Email Address");
+			customerEmailAddress.setBounds(50, 130, 200, 30);
+			JTextField emailAddressField = new JTextField();
+			emailAddressField.setBounds(50, 150, 100, 30);
+			emailAddressField.setText(customer.getEmailAddress());
+			
+			JLabel customerPhoneNumber = new JLabel("Phone Number");
+			customerPhoneNumber.setBounds(50, 170, 200, 30);
+			JTextField phoneNumberField = new JTextField();
+			phoneNumberField.setBounds(50, 190, 100, 30);
+			phoneNumberField.setText(customer.getPhoneNumber());
+
+			JLabel customerAddress = new JLabel("Address");
+			customerAddress.setBounds(50, 210, 200, 30);
+			JTextField addressField = new JTextField();
+			addressField.setBounds(50, 230, 100, 30);
+			addressField.setText(customer.getAddress());
+			
+//			ArrayList<Dog> customerDogs = customer.getDogs();
+//			addDogsToCustomerProfile(customerDogs);
+			
+			customerProfilePanel.add(options);
+			customerProfilePanel.add(customerId);
+			customerProfilePanel.add(idField);
+			customerProfilePanel.add(customerName);
+			customerProfilePanel.add(nameField);
+			customerProfilePanel.add(customerEmailAddress);
+			customerProfilePanel.add(emailAddressField);
+			customerProfilePanel.add(customerPhoneNumber);
+			customerProfilePanel.add(phoneNumberField);
+			customerProfilePanel.add(customerAddress);
+			customerProfilePanel.add(addressField);
+			
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+	}
+
+	private void employeeProfilePanel(){
+		Employee employee; 
+		try {
+			employee = branch.getEmployeeProfile(userID); 
+			employeeProfilePanel.setLayout(null); 
+			
+			JComboBox employeeOptions = createMainComboBox("Employee Profile"); 
+			
+			// add JLabels that for query Employee output 
+			
+			
+			employeeProfilePanel.add(employeeOptions);
+		}catch (Exception e){
+			 // TODO
+		}
+		 
+	}
+	
+	private void addDogsToCustomerProfile(ArrayList<Dog> dogs) 
+	{
+		for (int i = 0; i < dogs.size(); i++) {
+			System.out.println(dogs.get(i).name);
+		}
+		customerDogListModel = new DefaultListModel();
+		
+		JLabel dogsLabel = new JLabel("Your Dogs");
+		dogsLabel.setBounds(250, 50, 200, 30);
+		
+		JLabel nameLabel = new JLabel("Name");
+		nameLabel.setBounds(250, 60, 50, 30);
+		
+		JLabel breedLabel = new JLabel("Breed");
+		breedLabel.setBounds(300, 60, 50, 30);
+		
+		JLabel ageLabel = new JLabel("Age");
+		ageLabel.setBounds(350, 60, 50, 30);
+		
+		JLabel genderLabel = new JLabel("Gender");
+		genderLabel.setBounds(400, 60, 50, 30);
+
+		for(int i = 0; i < dogs.size(); i++)
+		{
+			Dog dog = dogs.get(i);
+			customerDogListModel.addElement(dog.name + "      " + dog.breed 
+					+ "         " + Integer.toString(dog.age) 
+					+ "            " + dog.gender.toUpperCase());
+			System.out.println("Updating list model:" + dogs.get(i).name);
+		} 
+
+		customerDogList = new JList<> (customerDogListModel);
+		ListSelectionListener listListener = new ListSelectionListener() {
+			@Override
+			public void valueChanged(ListSelectionEvent arg0) {
+				removeDog.setVisible(true);
+			}
+		};
+		
+		customerDogList.addListSelectionListener(listListener);
+		
+		customerDogList.setBounds(250, 80, 250, 150);
+		customerProfilePanel.add(dogsLabel);
+		customerProfilePanel.add(nameLabel);
+		customerProfilePanel.add(breedLabel);
+		customerProfilePanel.add(ageLabel);
+		customerProfilePanel.add(genderLabel);
+		customerProfilePanel.add(customerDogList);
+		JList<String> copyCustomerDogList = new JList<> (customerDogListModel);
+		setUpRemoveDogFrame(copyCustomerDogList, dogs);
+		System.out.println("Customer Profile Panel - Add dogs");
+	}
+	
+	private void setUpRemoveDogFrame(JList<String> copyCustomerDogList, ArrayList<Dog> dogs)
+	{
+		removeDog.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+		removeDog.setLayout(null);
+		removeDog.setBounds(0,0,300,350);
+		copyCustomerDogList.setBounds(15, 20, 250, 150);
+
+		JButton removeButton = new JButton("Remove Dog");
+		removeButton.setBounds(100, 200, 90, 40);
+		
+		ActionListener removeDogListener = new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				try {
+					int index = copyCustomerDogList.getSelectedIndex();
+					Dog dog = dogs.get(index);
+					((DefaultListModel) copyCustomerDogList.getModel()).remove(index);
+					branch.deleteDog(userID, dog.name);
+					// anonymous inner class for closing the window
+//					removeDog.addWindowListener(new WindowAdapter() {
+//						public void windowClosing(WindowEvent e) {
+//							((DefaultListModel) customerDogList.getModel()).remove(index);
+//						}
+//					});
+					JOptionPane.showMessageDialog(removeDog, dog.name + " has successfully been removed");
+				} catch (Exception exception) {
+					JOptionPane.showMessageDialog(removeDog, "An Internal Error has occured, an error has been reported, please try again later.");
+					System.out.println(exception.toString());
+				}
+			}
+		};
+		removeButton.addActionListener(removeDogListener);
+		removeDog.add(removeButton);
+		removeDog.add(copyCustomerDogList);
+	}
+
+	private JComboBox createMainComboBox(String defaultSelect)
+	{
+		String[] dropDownOptions = {"Profile", "Add Dog", "See Rank", "Make a Reservation"};
+		JComboBox options = new JComboBox(dropDownOptions);
+		options.setBounds(250, 20, 300, 20);
+		switch(defaultSelect) {
+			case "Profile":
+				options.setSelectedIndex(0);
+				break;
+			case "Add Dog":
+				options.setSelectedIndex(1);
+				break;
+			case "See Rank":
+				options.setSelectedIndex(2);
+				break;
+			default:
+				options.setSelectedIndex(3);
+				break;
+		}
+		System.out.println("Set selected to:" + defaultSelect);
+		ActionListener comboListener = new ComboBoxListener();
+		options.addActionListener(comboListener);
+		return options;
+	}
+	
+	private void switchCards(JPanel cardLayout, String cardName)
+	{
+		CardLayout cl = (CardLayout) (mainContentPanel.getLayout());
+		switch(cardName)
+		{
+			case "Profile":
+				try {
+//					customerProfilePanel();
+					ArrayList<Dog> customerDogs = branch.getCustomerProfile(userID).getDogs();
+					addDogsToCustomerProfile(customerDogs);
+				} catch (Exception e) {
+					JOptionPane.showMessageDialog(removeDog, "An Internal Error has occured, an error has been reported, please try again later.");
+				}
+				break;
+			
+			case "Add Dog":
+				addDogPanel();
+				break;
+				
+			default:
+				break;
+		}
+			
+		cl.show(cardLayout, cardName);
+		System.out.println(cardName);
+	}
+	
+	class DataCreateAction implements ActionListener {
+		public void actionPerformed(ActionEvent e) {
+			branch.runSqlScript();
+			switchCards(mainContentPanel, "Main Menu");
+		}
+	}
+
+	class DataCreateActionHitNo implements ActionListener {
+		public void actionPerformed(ActionEvent e) {
+			switchCards(mainContentPanel, "Main Menu");
+		}
+	}
+	
+	class ComboBoxListener implements ActionListener {
+		public void actionPerformed(ActionEvent e) {
+			JComboBox<String> combo = (JComboBox<String>) e.getSource();
+			String selected = (String) combo.getSelectedItem();
+			((JComboBox<String>) e.getSource()).setSelectedItem(selected);
+			switchCards(mainContentPanel, selected);
+		}
+	}
+}

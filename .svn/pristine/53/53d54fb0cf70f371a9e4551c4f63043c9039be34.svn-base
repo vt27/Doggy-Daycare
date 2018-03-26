@@ -1,0 +1,16 @@
+drop table loyalty_member;
+drop table dog_pick_up;
+drop table sign_daycare_agreement;
+drop table reservation_make_reservation;
+drop table provide;
+drop table service;
+drop table dog;
+drop table full_time;
+drop table part_time;
+drop table has_a_schedule;
+drop table stocks;
+drop table buys;
+drop table products_t2;
+drop table products_t1;
+drop table employee_manages;
+drop table customer;
